@@ -1,1 +1,3 @@
-print('wsp')
+import math
+import random
+
