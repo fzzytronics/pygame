@@ -149,5 +149,6 @@ class Fernando:
                     print('"AAAAAAAH"')
                     condition = True
                     #Adding combat code later. Hoping Pablo cooks fr.
+                    # pablo update: Im cooking, just need to figure out the player hitbox and movement
                 case 6:
                     condition = True
