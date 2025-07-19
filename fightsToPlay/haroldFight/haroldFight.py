@@ -14,7 +14,7 @@ choice = random.randint(1, 100)
 # choice = random.choice(1, 100)
 
 # Game attributes
-SCREEN_WIDTH, SCREEN_HEIGHT = 720, 1280
+SCREEN_WIDTH, SCREEN_HEIGHT = 720, 1000
 PLAYER_WIDTH, PLAYER_HEIGHT = 150, 150
 
 BULLET_WIDTH, BULLET_HEIGHT = 50, 100
