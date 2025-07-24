@@ -1,15 +1,15 @@
-class Fernando:
+import time
+
+
+def fernando():
+    Uinput = input()
     condition = False
     #Collection of Dialogue Bools
     #Tree1
     case1 = True #Things like this keep the dialogue from repeating
     case4 = True
-
+     
     tree1 = False #Keeps player in the dialogue tree
-    tree2 = False
-    tree3 = False
-    tree4 = False
-    tree5 = False
     tree11 = False
     tree1Sec1 = False #Secret toggles
 
@@ -149,6 +149,5 @@ class Fernando:
                     print('"AAAAAAAH"')
                     condition = True
                     #Adding combat code later. Hoping Pablo cooks fr.
-                    # pablo update: Im cooking, just need to figure out the player hitbox and movement
                 case 6:
                     condition = True
