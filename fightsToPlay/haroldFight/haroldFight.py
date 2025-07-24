@@ -10,15 +10,15 @@ from time import *
 pygame.init()
 pygame.mixer.init()
 
-choice = random.randint(1, 100)
-# choice = random.choice(1, 100)
-
 # Game attributes
 SCREEN_WIDTH, SCREEN_HEIGHT = 720, 1000
 PLAYER_WIDTH, PLAYER_HEIGHT = 150, 150
+PLAYER_MAX_HEALTH = 100
+player_health = PLAYER_MAX_HEALTH
 
 BULLET_WIDTH, BULLET_HEIGHT = 50, 100
 BULLET_SPEED = 3
+BULLET_DAMAGE = 10
 
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
 ENEMY_SHIP_CENTER_LEFT_BOUND = 0
@@ -26,7 +26,9 @@ ENEMY_SHIP_CENTER_RIGHT_BOUND = SCREEN_WIDTH - (ENEMY_SHIP_WIDTH)
 ENEMY_SHIP_SPEED = 0.3
 ENEMY_SHIP_MAX_LEFT_SHIFT = -(3 * BULLET_WIDTH)
 ENEMY_SHIP_MAX_RIGHT_SHIFT = (3 * BULLET_WIDTH)
-ENEMY_FIRE_PAUSE = 200
+ENEMY_FIRE_PAUSE = 100
+ENEMY_MAX_HEALTH = 200
+enemy_health = ENEMY_MAX_HEALTH
 
 SCORE_FONT_SIZE = 30
 
@@ -35,12 +37,12 @@ SCORE_TO_SHIP_RATIO = 10
 
 HITBOX_BUFFER = 65
 X_BUFFER = 30
-LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY = choice
+LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY = 50
 SATISFACTION = 1000
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-score = 0
-dead = False
+game_over = False
+victory = False
 clock = pygame.time.Clock()
 running = True
 
@@ -60,10 +62,11 @@ enemy_bullet = pygame.image.load("enemies/enemy_bullet.png").convert_alpha()
 enemy_bullet = pygame.transform.scale(enemy_bullet, (BULLET_WIDTH, BULLET_HEIGHT))
 enemy_bullet_locations = []
 
-enemy_ship = pygame.image.load("enemies/enemy_ship.png").convert_alpha()
-enemy_ship = pygame.transform.scale(enemy_ship, (ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT))
-enemy_ship_locations = []
-enemy_ship_fire_timers = []
+enemy_ship_image = pygame.image.load("enemies/enemy_ship.png").convert_alpha()
+enemy_ship_image = pygame.transform.scale(enemy_ship_image, (ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT))
+enemy_ship_location = [SCREEN_WIDTH / 2 - ENEMY_SHIP_WIDTH / 2, 50]
+enemy_ship_fire_timer = 0
+
 
 # Load the sound effects
 """
@@ -88,7 +91,6 @@ player_death_sound_effect = pygame.mixer.Sound("player/player_death.mp3")
 
 # Font for text
 mono_font = pygame.font.SysFont("monospace", SCORE_FONT_SIZE)
-score_label = mono_font.render("Score: 0", 1, (255, 255, 255))
 
 def entity_hit(entity_x: float, entity_width: float,
               entity_y: float, entity_height: float, 
@@ -134,15 +136,16 @@ def reset_game() -> None:
     - None
     """
 
-    global bullet_locations, enemy_bullet_locations, enemy_ship_locations, \
-    enemy_ship_fire_timers, score, dead
+    global bullet_locations, enemy_bullet_locations, player_health, enemy_health, game_over, victory, enemy_ship_location, enemy_ship_fire_timer
 
     bullet_locations = []
     enemy_bullet_locations = []
-    enemy_ship_locations = []
-    enemy_ship_fire_timers = []
-    score = 0
-    dead = False
+    player_health = PLAYER_MAX_HEALTH
+    enemy_health = ENEMY_MAX_HEALTH
+    enemy_ship_location = [SCREEN_WIDTH / 2 - ENEMY_SHIP_WIDTH / 2, 50]
+    enemy_ship_fire_timer = 0
+    game_over = False
+    victory = False
 
 
 # Ship data
@@ -160,7 +163,7 @@ while running:
             running = False
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            if not dead:
+            if not game_over and not victory:
                 # If the mouse is clicked (down stroke), make a bullet
                 bullet_location_x = player_x_center - (BULLET_WIDTH / 2)
                 bullet_location_y = player_y_center - (PLAYER_HEIGHT / 2)
@@ -170,7 +173,7 @@ while running:
             else:
                 reset_game()
 
-    if not dead:
+    if not game_over and not victory:
         # Adjust bullet locations
         for index in range(len(bullet_locations)-1, -1, -1):
             bullet_locations[index][1] -= BULLET_SPEED
@@ -187,80 +190,61 @@ while running:
             if enemy_bullet_locations[index][1] + BULLET_HEIGHT >= SCREEN_HEIGHT:
                 del enemy_bullet_locations[index]
 
-        # Adjust enemy ship locations
-        for index in range(len(enemy_ship_locations)-1, -1, -1):
-            enemy_ship_locations[index][1] += ENEMY_SHIP_SPEED
+        # Adjust enemy ship location
+        enemy_ship_location[1] += ENEMY_SHIP_SPEED
 
-            # Randomly shift to the side
-            left_x_available_space = enemy_ship_locations[index][0]
-            right_x_available_space = SCREEN_WIDTH - (enemy_ship_locations[index][0] + ENEMY_SHIP_WIDTH)
+        # Randomly shift to the side
+        left_x_available_space = enemy_ship_location[0]
+        right_x_available_space = SCREEN_WIDTH - (enemy_ship_location[0] + ENEMY_SHIP_WIDTH)
 
-            left_shift_bound = max(-left_x_available_space, ENEMY_SHIP_MAX_LEFT_SHIFT)
-            right_shift_bound = min(right_x_available_space, ENEMY_SHIP_MAX_RIGHT_SHIFT)
+        left_shift_bound = max(-left_x_available_space, ENEMY_SHIP_MAX_LEFT_SHIFT)
+        right_shift_bound = min(right_x_available_space, ENEMY_SHIP_MAX_RIGHT_SHIFT)
 
+        # Buffer side to side movement to avoid laggy look
+        if loop_counter % LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY == 0:
             distance_moved = left_shift_bound + (random.random() * (right_shift_bound - left_shift_bound))
+            enemy_ship_location[0] += distance_moved
 
-            # Buffer side to side movement to avoid laggy look
-            if loop_counter == 0:
-                enemy_ship_locations[index][0] += distance_moved
+        # Update fire timer
+        if enemy_ship_fire_timer == ENEMY_FIRE_PAUSE:
+            # Make the bullet
+            enemy_bullet_x = enemy_ship_location[0] + (ENEMY_SHIP_WIDTH / 2) - (BULLET_WIDTH / 2)
+            enemy_bullet_y = enemy_ship_location[1] + (ENEMY_SHIP_HEIGHT)
 
-            # Update fire timer
-            if enemy_ship_fire_timers[index] == ENEMY_FIRE_PAUSE:
-                # Make the bullet
-                enemy_bullet_x = enemy_ship_locations[index][0] + (ENEMY_SHIP_WIDTH / 2)
-                enemy_bullet_y = enemy_ship_locations[index][1] + (ENEMY_SHIP_HEIGHT)
+            enemy_bullet_locations.append([enemy_bullet_x, enemy_bullet_y])
+            enemy_laser_sound_effect.play()
 
-                enemy_bullet_locations.append([enemy_bullet_x, enemy_bullet_y])
-                enemy_laser_sound_effect.play()
+            # Reset the pause timer
+            enemy_ship_fire_timer = 0
+        else:
+            enemy_ship_fire_timer += 1
 
-                # Reset the pause timer
-                enemy_ship_fire_timers[index] = 0
-            else:
-                enemy_ship_fire_timers[index] += 1
 
-            # Check for out of bounds
-            if enemy_ship_locations[index][1] + ENEMY_SHIP_HEIGHT >= SCREEN_HEIGHT - PLAYER_HEIGHT:
-                del enemy_ship_locations[index]
-                del enemy_ship_fire_timers[index]
-
-        # Determine enemy location spawn points
-        if len(enemy_ship_locations) < ((score // SCORE_TO_SHIP_RATIO) + 1):
-            enemy_possible_x_span = ENEMY_SHIP_CENTER_RIGHT_BOUND - ENEMY_SHIP_CENTER_LEFT_BOUND
-            enemy_ship_x = ENEMY_SHIP_CENTER_LEFT_BOUND + (random.random() * enemy_possible_x_span)
-
-            enemy_ship_y = 0
-
-            # Add ship and fire timer
-            enemy_ship_locations.append([enemy_ship_x, enemy_ship_y])
-            enemy_ship_fire_timers.append(0)
-
-        # Check for bullet collision
+        # Check for player bullet collision with enemy
         for bullet_index in range(len(bullet_locations)-1, -1, -1):
-            for enemy_index in range(len(enemy_ship_locations)-1, -1, -1):
-                # Extract the info
-                bullet_x, bullet_y = bullet_locations[bullet_index]
-                enemy_x, enemy_y = enemy_ship_locations[enemy_index]
+            bullet_x, bullet_y = bullet_locations[bullet_index]
+            
+            if entity_hit(enemy_ship_location[0], ENEMY_SHIP_WIDTH, enemy_ship_location[1], ENEMY_SHIP_HEIGHT,
+                        bullet_x, BULLET_WIDTH, bullet_y, BULLET_HEIGHT, HITBOX_BUFFER):
+                del bullet_locations[bullet_index]
+                enemy_health -= BULLET_DAMAGE
+                enemy_death_sound_effect.play()
+                if enemy_health <= 0:
+                    victory = True
+                break
 
-                # If hit, remove the enemy and the ship
-                if entity_hit(enemy_x, ENEMY_SHIP_WIDTH, enemy_y, ENEMY_SHIP_HEIGHT,
-                            bullet_x, BULLET_WIDTH, bullet_y, BULLET_HEIGHT, HITBOX_BUFFER):
-                    del bullet_locations[bullet_index]
-                    del enemy_ship_locations[enemy_index]
-                    score += 1
-                    enemy_death_sound_effect.play()
-
-                    break
-
+        # Check for enemy bullet collision with player
         for enemy_bullet_index in range(len(enemy_bullet_locations)-1, -1, -1):
-            # Extract the info
             bullet_x, bullet_y = enemy_bullet_locations[enemy_bullet_index]
 
-            # If an enemy bullet hits a player
             if entity_hit(player_x_center - (PLAYER_WIDTH/2), PLAYER_WIDTH, player_y_center-(PLAYER_HEIGHT/2), PLAYER_HEIGHT,
                         bullet_x, BULLET_WIDTH, bullet_y, BULLET_HEIGHT, -HITBOX_BUFFER):
-                dead = True
-                player_death_sound_effect.play()
-        
+                    del enemy_bullet_locations[enemy_bullet_index]
+                    player_health -= BULLET_DAMAGE
+                    if player_health <= 0:
+                        game_over = True
+                        player_death_sound_effect.play()
+
         # Have the ship's x be aligned with the mouse position
         player_x_center = pygame.mouse.get_pos()[0]
 
@@ -269,9 +253,8 @@ while running:
         screen.blit(background, (0, 0))
         screen.blit(player_ship, player_rect)
 
-        # Draw the enemies
-        for enemy_ship_location in enemy_ship_locations:
-            screen.blit(enemy_ship, enemy_ship_location)
+        # Draw the enemy
+        screen.blit(enemy_ship_image, enemy_ship_location)
 
         # Draw the bullets, if any
         for bullet_location in bullet_locations:
@@ -279,11 +262,14 @@ while running:
         for enemy_bullet_location in enemy_bullet_locations:
             screen.blit(enemy_bullet, enemy_bullet_location)
 
-        # Update and draw the score
-        score_label = mono_font.render(f"Score: {score * SATISFACTION}", 1, (255, 255, 255))
-        screen.blit(score_label, (0, 0))
+        # Draw health bars
+        player_health_bar = pygame.Rect(10, SCREEN_HEIGHT - 30, (player_health / PLAYER_MAX_HEALTH) * (SCREEN_WIDTH - 20), 20)
+        pygame.draw.rect(screen, (0, 255, 0), player_health_bar)
 
-    else:
+        enemy_health_bar = pygame.Rect(10, 10, (enemy_health / ENEMY_MAX_HEALTH) * (SCREEN_WIDTH - 20), 20)
+        pygame.draw.rect(screen, (255, 0, 0), enemy_health_bar)
+
+    elif game_over:
         dead_label = mono_font.render("YOU HAVE DIED", 1, (255, 255, 255))
         dead_label_x = (SCREEN_WIDTH / 2) - (dead_label.get_width() / 2)
         dead_label_y = (SCREEN_HEIGHT / 2) - (dead_label.get_height())
@@ -294,8 +280,19 @@ while running:
         play_again_label_y = (SCREEN_HEIGHT / 2) + (play_again_label.get_height())
         screen.blit(play_again_label, (play_again_label_x, play_again_label_y))
     
+    elif victory:
+        victory_label = mono_font.render("YOU ARE VICTORIOUS!", 1, (255, 255, 255))
+        victory_label_x = (SCREEN_WIDTH / 2) - (victory_label.get_width() / 2)
+        victory_label_y = (SCREEN_HEIGHT / 2) - (victory_label.get_height())
+        screen.blit(victory_label, (victory_label_x, victory_label_y))
+
+        play_again_label = mono_font.render("CLICK ANYWHERE TO PLAY AGAIN", 1, (255, 255, 255))
+        play_again_label_x = (SCREEN_WIDTH / 2) - (play_again_label.get_width() / 2)
+        play_again_label_y = (SCREEN_HEIGHT / 2) + (play_again_label.get_height())
+        screen.blit(play_again_label, (play_again_label_x, play_again_label_y))
+
     pygame.display.flip()
-    loop_counter = (loop_counter + 1) % LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY
+    loop_counter += 1
 
 
 pygame.quit()
