@@ -1,0 +1,64 @@
+Welcome to Dandelion stranger! My name  s Fernando! From the looks of it, you must be another one of those warriors.  
+"Lots of your type around here. Some knights came by earlier, looking for the same things as you I bet.  
+*He gives a warm smile.  
+(1) "What do you do?"  
+(2) "Where can I rest?"  
+(3) "Knights?"  
+(4) "What can you tell me about this place?"  
+(5) Fight Fernando  
+(6) Leave  
+"As you can see, I  m a farmhand. The farm  s about a few fields down, where I help with the grain and cattle.  
+"It  s fine work I tell you. You  d feel sore by the end of the day, but I  d say it  s worth breaking  
+"your back in order to feed the entire town.  
+"*Fernando leans on his pitchfork  
+      "---------------------------------------------------------------------------------------------  
+
+(1) "Have you had any trouble farming lately?"  
+(2) "Any other farmers around here?"  
+(3) Back  
+
+(4) How bad was the attack?  
+
+"Oh yes! It  s been hell on Earth for us ever since these monsters showed on up.  
+"We try to run them off, but they come in great numbers. It doesn  t help that they come after dusk too.  
+"We  re scared for our lives. They know our food  s a target, and they  re a very relentless mob indeed.  
+"*He leans on his pitchfork heavily  
+"---------------------------------------------------------------------------------------
+"Most of them are still at the farm working. I  m here because I was set on the lookout.  
+"The last attack was the worst we ever got it. We have to spread ourselves thin to  
+"make up for the lost men.  
+"---------------------------------------------------------------------------------------------  
+
+
+"It was terrible. About 13 were lost during the attack, including a mother and father.  
+"People are sick with grief. I wish I could do more to help them. I really do.  
+
+"You can rest at the inn just a little further in. It says Catcher Sam  s at the top. Couldn  t miss it.  
+
+"That  s right. They  re knights sent straight from the baron, so they  re the best we  re going to have it.  
+"Their captain was named Hannibal. I think he  s somewhere in the town.  
+"You won  t find many though. I heard they were hurt really bad since their last adventure in that cave.  
+"May God rest their souls.  
+
+"Well, there  s a lot I could say. Depends on what you want to know!  
+"-----------------------------------------------------------------------------------------
+"*Fernando leans on his pitchfork  
+"-----------------------------------------------------------------------------------------
+"---------------------------------------------------------------------------------------------  
+(1) "Where can I buy armor and weapons?"  
+(2) "Where can I buy healing items?"  
+(3) "why is this place named Dandelion?"  
+(4) Back  
+
+"From the square there should be a large grey building with shingles on the side.  
+"Just walk into the dullest building you see and you  ll probably find it.  
+"It  s ran by Andre. Great guy. He sells most of the wares we have available.  
+
+"Oh yeah... I haven  t been there in ages. I can  t exactly remember.  
+"Try asking Andre, he  s the main shopkeeper around here.  
+
+"It means   lion  s tooth.   Natives of this land used to trade accessories made  
+"out of teeth of mighty cats, many of which were lions.  
+"Our village used to be a trading post for such items. Eventually, we became a town. 
+
+"AAAAAAAH"  
