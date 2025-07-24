@@ -1,9 +1,10 @@
 """
-Following the trend, this will be a minigame, will have to make a victory/defeat 
+Following the trend, this will be a minigame, will have to make a victory/defeat
 """
 """this one will be space invaders of a sort"""
 import pygame
 import random
+import math
 from time import *
 
 # pygame setup
@@ -11,34 +12,31 @@ pygame.init()
 pygame.mixer.init()
 
 # Game attributes
-SCREEN_WIDTH, SCREEN_HEIGHT = 720, 1000
+SCREEN_WIDTH, SCREEN_HEIGHT = 720, 900
 PLAYER_WIDTH, PLAYER_HEIGHT = 150, 150
+# --- NEW: Define the size of the actual hitbox ---
+# It's much smaller for easier dodging. Feel free to adjust these!
+PLAYER_HITBOX_WIDTH = PLAYER_WIDTH // 3
+PLAYER_HITBOX_HEIGHT = PLAYER_HEIGHT // 3
+
 PLAYER_MAX_HEALTH = 100
+PLAYER_SPEED = 5
 player_health = PLAYER_MAX_HEALTH
 
 BULLET_WIDTH, BULLET_HEIGHT = 50, 100
-BULLET_SPEED = 3
+PLAYER_BULLET_SPEED = 10 # Player bullets are faster
+ENEMY_BULLET_SPEED = 6 # Speed for enemy bullets
 BULLET_DAMAGE = 10
+PLAYER_FIRE_PAUSE = 30
 
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
-ENEMY_SHIP_CENTER_LEFT_BOUND = 0
-ENEMY_SHIP_CENTER_RIGHT_BOUND = SCREEN_WIDTH - (ENEMY_SHIP_WIDTH)
-ENEMY_SHIP_SPEED = 0.3
-ENEMY_SHIP_MAX_LEFT_SHIFT = -(3 * BULLET_WIDTH)
-ENEMY_SHIP_MAX_RIGHT_SHIFT = (3 * BULLET_WIDTH)
-ENEMY_FIRE_PAUSE = 100
+ENEMY_SPEED = 5  # Increased enemy mobility
+ENEMY_FIRE_PAUSE = 70  # Cooldown for regular shots
+ENEMY_SPECIAL_ATTACK_COOLDOWN = 180 # Cooldown for the 8-bullet special attack
 ENEMY_MAX_HEALTH = 200
 enemy_health = ENEMY_MAX_HEALTH
 
 SCORE_FONT_SIZE = 30
-
-# use to track hits without a health system for the enemies??
-SCORE_TO_SHIP_RATIO = 10
-
-HITBOX_BUFFER = 65
-X_BUFFER = 30
-LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY = 50
-SATISFACTION = 1000
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 game_over = False
@@ -47,252 +45,201 @@ clock = pygame.time.Clock()
 running = True
 
 # Load images
-player_ship = pygame.image.load("player/player_ship.png").convert_alpha()
-player_ship = pygame.transform.scale(player_ship, (PLAYER_WIDTH, PLAYER_HEIGHT))
-player_rect = player_ship.get_rect()
+player_ship_image = pygame.image.load("player/player_ship.png").convert_alpha()
+player_ship_image = pygame.transform.scale(player_ship_image, (PLAYER_WIDTH, PLAYER_HEIGHT))
+player_rect = player_ship_image.get_rect(center=(SCREEN_WIDTH / 2, SCREEN_HEIGHT - PLAYER_HEIGHT))
+
+# --- NEW: Create the separate hitbox rect ---
+player_hitbox_rect = pygame.Rect(0, 0, PLAYER_HITBOX_WIDTH, PLAYER_HITBOX_HEIGHT)
+player_hitbox_rect.center = player_rect.center # Center it initially
 
 background = pygame.image.load("other_assets/background.jpg").convert()
 background = pygame.transform.scale(background, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
-bullet = pygame.image.load("player/bullet.png").convert_alpha()
-bullet = pygame.transform.scale(bullet, (BULLET_WIDTH, BULLET_HEIGHT))
-bullet_locations = []
+player_bullet_image = pygame.image.load("player/bullet.png").convert_alpha()
+player_bullet_image = pygame.transform.scale(player_bullet_image, (BULLET_WIDTH, BULLET_HEIGHT))
+player_bullets = []
 
-enemy_bullet = pygame.image.load("enemies/enemy_bullet.png").convert_alpha()
-enemy_bullet = pygame.transform.scale(enemy_bullet, (BULLET_WIDTH, BULLET_HEIGHT))
-enemy_bullet_locations = []
+enemy_bullet_image = pygame.image.load("enemies/enemy_bullet.png").convert_alpha()
+enemy_bullet_image = pygame.transform.scale(enemy_bullet_image, (BULLET_WIDTH, BULLET_HEIGHT))
+enemy_bullets = [] # List will store dicts: {'rect': rect, 'vx': vx, 'vy': vy}
 
 enemy_ship_image = pygame.image.load("enemies/enemy_ship.png").convert_alpha()
 enemy_ship_image = pygame.transform.scale(enemy_ship_image, (ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT))
-enemy_ship_location = [SCREEN_WIDTH / 2 - ENEMY_SHIP_WIDTH / 2, 50]
-enemy_ship_fire_timer = 0
-
+enemy_ship_rect = enemy_ship_image.get_rect(center=(SCREEN_WIDTH / 2, 100))
+enemy_target_pos = None
 
 # Load the sound effects
-"""
-Sound Effect by <a href="https://pixabay.com/users/freesound_community-46691455/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=14562">freesound_community</a> from <a href="https://pixabay.com//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=14562">Pixabay</a>
-"""
 player_laser_sound_effect = pygame.mixer.Sound("player/player_laser.mp3")
 player_laser_sound_effect.set_volume(0.1)
-"""
-Sound Effect by <a href="https://pixabay.com/users/driken5482-45721595/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=236669">Driken Stan</a> from <a href="https://pixabay.com/sound-effects//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=236669">Pixabay</a>
-"""
 enemy_laser_sound_effect = pygame.mixer.Sound("enemies/enemy_laser.mp3")
 enemy_laser_sound_effect.set_volume(0.1)
-"""
-Sound Effect by <a href="https://pixabay.com/users/u_b32baquv5u-50250111/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=340460">u_b32baquv5u</a> from <a href="https://pixabay.com/sound-effects//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=340460">Pixabay</a>
-"""
 enemy_death_sound_effect = pygame.mixer.Sound("enemies/enemy_death.mp3")
 enemy_death_sound_effect.set_volume(0.2)
-"""
-Sound Effect by <a href="https://pixabay.com/users/freesound_community-46691455/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=66829">freesound_community</a> from <a href="https://pixabay.com/sound-effects//?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=66829">Pixabay</a>
-"""
 player_death_sound_effect = pygame.mixer.Sound("player/player_death.mp3")
 
 # Font for text
 mono_font = pygame.font.SysFont("monospace", SCORE_FONT_SIZE)
 
-def entity_hit(entity_x: float, entity_width: float,
-              entity_y: float, entity_height: float, 
-              bullet_x: float, bullet_width: float,
-              bullet_y: float, bullet_height: float, hitbox_buffer: float) -> bool:
-    """
-    Checks if the bullet has hit the entity
+# --- Initialize Timers ---
+player_ship_fire_timer = 0
+enemy_ship_fire_timer = 0
+enemy_special_attack_timer = 0
 
-    Args:
-    - entity_x (float): x position of the entity rect
-    - entity_wdith (float): width of the entity
-    - entity_y (float): y position of the entity rect
-    - entity_height (float): height of the entity
-    - bullet_x (float): x position of the bullet rect
-    - bullet_width (float): width of the bullet
-    - bullet_y (float): y position of the bullet rect
-    - bullet_height (float): height of the bullet
-    - hitbox_buffer (float): vertical hitbox buffer to account for empty space in sprites
-
-    Returns:
-    - a boolean (if hit -> True, if no hit -> False)
-    """
-
-    horizontal_condition_one = (entity_x + X_BUFFER < bullet_x < entity_x + entity_width - X_BUFFER)
-    horizontal_condition_two = (entity_x + X_BUFFER < bullet_x + bullet_width < entity_x + entity_width - X_BUFFER)
-    horizontal_met = horizontal_condition_one or horizontal_condition_two
-
-    vertical_condition_one = (entity_y - hitbox_buffer < bullet_y < entity_y + entity_height - hitbox_buffer)
-    vertical_condition_two = (entity_y - hitbox_buffer < bullet_y + bullet_height < entity_y + entity_height - hitbox_buffer)
-    vertical_met = vertical_condition_one or vertical_condition_two
-
-
-    return horizontal_met and vertical_met
+def get_new_enemy_target():
+    """Generates a new random target for the enemy in the top half of the screen."""
+    x = random.randint(ENEMY_SHIP_WIDTH // 2, SCREEN_WIDTH - ENEMY_SHIP_WIDTH // 2)
+    y = random.randint(ENEMY_SHIP_HEIGHT // 2, SCREEN_HEIGHT // 2)
+    return [x, y]
 
 def reset_game() -> None:
-    """
-    Resets everything
+    """Resets the game to its initial state."""
+    global player_bullets, enemy_bullets, player_health, enemy_health, game_over, victory, player_ship_fire_timer, enemy_ship_fire_timer, enemy_special_attack_timer, enemy_target_pos
 
-    Args:
-    - None
-
-    Returns:
-    - None
-    """
-
-    global bullet_locations, enemy_bullet_locations, player_health, enemy_health, game_over, victory, enemy_ship_location, enemy_ship_fire_timer
-
-    bullet_locations = []
-    enemy_bullet_locations = []
+    player_bullets = []
+    enemy_bullets = []
     player_health = PLAYER_MAX_HEALTH
     enemy_health = ENEMY_MAX_HEALTH
-    enemy_ship_location = [SCREEN_WIDTH / 2 - ENEMY_SHIP_WIDTH / 2, 50]
+    
+    player_rect.center = (SCREEN_WIDTH / 2, SCREEN_HEIGHT - PLAYER_HEIGHT)
+    enemy_ship_rect.center = (SCREEN_WIDTH / 2, 100)
+    
+    player_ship_fire_timer = 0
     enemy_ship_fire_timer = 0
+    enemy_special_attack_timer = 0
+    enemy_target_pos = get_new_enemy_target()
+    
     game_over = False
     victory = False
 
-
-# Ship data
-player_x_center = SCREEN_WIDTH / 2
-player_y_center = SCREEN_HEIGHT - (player_ship.get_height() / 2)
-
-loop_counter = 0
-
+# Set initial enemy target
+enemy_target_pos = get_new_enemy_target()
 
 while running:
-    # poll for events
-    # pygame.QUIT event means the user clicked X to close your window
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if not game_over and not victory:
-                # If the mouse is clicked (down stroke), make a bullet
-                bullet_location_x = player_x_center - (BULLET_WIDTH / 2)
-                bullet_location_y = player_y_center - (PLAYER_HEIGHT / 2)
-
-                bullet_locations.append([bullet_location_x, bullet_location_y])
-                player_laser_sound_effect.play()
-            else:
-                reset_game()
+        if event.type == pygame.MOUSEBUTTONDOWN and (game_over or victory):
+             reset_game()
 
     if not game_over and not victory:
-        # Adjust bullet locations
-        for index in range(len(bullet_locations)-1, -1, -1):
-            bullet_locations[index][1] -= BULLET_SPEED
-
-            # Check for out of bounds
-            if bullet_locations[index][1] < 0:
-                del bullet_locations[index]
-
-        # Adjust enemy bullet locations
-        for index in range(len(enemy_bullet_locations)-1, -1, -1):
-            enemy_bullet_locations[index][1] += BULLET_SPEED
-
-            # Check for out of bounds
-            if enemy_bullet_locations[index][1] + BULLET_HEIGHT >= SCREEN_HEIGHT:
-                del enemy_bullet_locations[index]
-
-        # Adjust enemy ship location
-        enemy_ship_location[1] += ENEMY_SHIP_SPEED
-
-        # Randomly shift to the side
-        left_x_available_space = enemy_ship_location[0]
-        right_x_available_space = SCREEN_WIDTH - (enemy_ship_location[0] + ENEMY_SHIP_WIDTH)
-
-        left_shift_bound = max(-left_x_available_space, ENEMY_SHIP_MAX_LEFT_SHIFT)
-        right_shift_bound = min(right_x_available_space, ENEMY_SHIP_MAX_RIGHT_SHIFT)
-
-        # Buffer side to side movement to avoid laggy look
-        if loop_counter % LOOPS_UNTIL_ENEMY_SHIP_MOVES_HORIZONTALLY == 0:
-            distance_moved = left_shift_bound + (random.random() * (right_shift_bound - left_shift_bound))
-            enemy_ship_location[0] += distance_moved
-
-        # Update fire timer
-        if enemy_ship_fire_timer == ENEMY_FIRE_PAUSE:
-            # Make the bullet
-            enemy_bullet_x = enemy_ship_location[0] + (ENEMY_SHIP_WIDTH / 2) - (BULLET_WIDTH / 2)
-            enemy_bullet_y = enemy_ship_location[1] + (ENEMY_SHIP_HEIGHT)
-
-            enemy_bullet_locations.append([enemy_bullet_x, enemy_bullet_y])
-            enemy_laser_sound_effect.play()
-
-            # Reset the pause timer
-            enemy_ship_fire_timer = 0
-        else:
-            enemy_ship_fire_timer += 1
-
-
-        # Check for player bullet collision with enemy
-        for bullet_index in range(len(bullet_locations)-1, -1, -1):
-            bullet_x, bullet_y = bullet_locations[bullet_index]
+        keys = pygame.key.get_pressed()
+        
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            player_rect.x -= PLAYER_SPEED
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            player_rect.x += PLAYER_SPEED
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            player_rect.y -= PLAYER_SPEED
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            player_rect.y += PLAYER_SPEED
             
-            if entity_hit(enemy_ship_location[0], ENEMY_SHIP_WIDTH, enemy_ship_location[1], ENEMY_SHIP_HEIGHT,
-                        bullet_x, BULLET_WIDTH, bullet_y, BULLET_HEIGHT, HITBOX_BUFFER):
-                del bullet_locations[bullet_index]
+        if keys[pygame.K_SPACE] and player_ship_fire_timer >= PLAYER_FIRE_PAUSE:
+            player_ship_fire_timer = 0
+            bullet_rect = player_bullet_image.get_rect(midbottom=player_rect.midtop)
+            player_bullets.append(bullet_rect)
+            player_laser_sound_effect.play()
+
+        player_ship_fire_timer += 1
+        enemy_ship_fire_timer += 1
+        enemy_special_attack_timer += 1
+        
+        player_rect.clamp_ip(screen.get_rect())
+
+        # --- NEW: Update the hitbox position to follow the player sprite ---
+        player_hitbox_rect.center = player_rect.center
+
+        # --- Enemy AI Movement ---
+        dx = enemy_target_pos[0] - enemy_ship_rect.centerx
+        dy = enemy_target_pos[1] - enemy_ship_rect.centery
+        dist = math.hypot(dx, dy)
+
+        if dist < ENEMY_SPEED * 2: 
+            enemy_target_pos = get_new_enemy_target()
+        else:
+            enemy_ship_rect.x += (dx / dist) * ENEMY_SPEED
+            enemy_ship_rect.y += (dy / dist) * ENEMY_SPEED
+            
+        for b_rect in player_bullets[:]:
+            b_rect.y -= PLAYER_BULLET_SPEED
+            if b_rect.bottom < 0:
+                player_bullets.remove(b_rect)
+
+        for b in enemy_bullets[:]:
+            b['rect'].x += b['vx']
+            b['rect'].y += b['vy']
+            if not screen.get_rect().colliderect(b['rect']):
+                enemy_bullets.remove(b)
+
+        if enemy_ship_fire_timer >= ENEMY_FIRE_PAUSE:
+            enemy_ship_fire_timer = 0
+            bullet_rect = enemy_bullet_image.get_rect(midtop=enemy_ship_rect.midbottom)
+            enemy_bullets.append({'rect': bullet_rect, 'vx': 0, 'vy': ENEMY_BULLET_SPEED})
+            enemy_laser_sound_effect.play()
+            
+        if enemy_special_attack_timer >= ENEMY_SPECIAL_ATTACK_COOLDOWN:
+            enemy_special_attack_timer = 0
+            enemy_laser_sound_effect.play()
+            for i in range(8):
+                angle = i * (math.pi / 4)
+                vx = math.cos(angle) * ENEMY_BULLET_SPEED
+                vy = math.sin(angle) * ENEMY_BULLET_SPEED
+                bullet_rect = enemy_bullet_image.get_rect(center=enemy_ship_rect.center)
+                enemy_bullets.append({'rect': bullet_rect, 'vx': vx, 'vy': vy})
+
+        # --- Collision Detection ---
+        for b_rect in player_bullets[:]:
+            if enemy_ship_rect.colliderect(b_rect):
+                player_bullets.remove(b_rect)
                 enemy_health -= BULLET_DAMAGE
                 enemy_death_sound_effect.play()
                 if enemy_health <= 0:
                     victory = True
                 break
+        
+        # --- CHANGED: Use the smaller hitbox for collision ---
+        for b in enemy_bullets[:]:
+            if player_hitbox_rect.colliderect(b['rect']):
+                enemy_bullets.remove(b)
+                player_health -= BULLET_DAMAGE
+                if player_health <= 0:
+                    game_over = True
+                    player_death_sound_effect.play()
+                break
 
-        # Check for enemy bullet collision with player
-        for enemy_bullet_index in range(len(enemy_bullet_locations)-1, -1, -1):
-            bullet_x, bullet_y = enemy_bullet_locations[enemy_bullet_index]
-
-            if entity_hit(player_x_center - (PLAYER_WIDTH/2), PLAYER_WIDTH, player_y_center-(PLAYER_HEIGHT/2), PLAYER_HEIGHT,
-                        bullet_x, BULLET_WIDTH, bullet_y, BULLET_HEIGHT, -HITBOX_BUFFER):
-                    del enemy_bullet_locations[enemy_bullet_index]
-                    player_health -= BULLET_DAMAGE
-                    if player_health <= 0:
-                        game_over = True
-                        player_death_sound_effect.play()
-
-        # Have the ship's x be aligned with the mouse position
-        player_x_center = pygame.mouse.get_pos()[0]
-
-        # Adjust and draw the ship
-        player_rect.center = [player_x_center, player_y_center]
+        # --- Drawing ---
         screen.blit(background, (0, 0))
-        screen.blit(player_ship, player_rect)
+        screen.blit(player_ship_image, player_rect)
+        screen.blit(enemy_ship_image, enemy_ship_rect)
 
-        # Draw the enemy
-        screen.blit(enemy_ship_image, enemy_ship_location)
+        for b_rect in player_bullets:
+            screen.blit(player_bullet_image, b_rect)
+        for b in enemy_bullets:
+            screen.blit(enemy_bullet_image, b['rect'])
 
-        # Draw the bullets, if any
-        for bullet_location in bullet_locations:
-            screen.blit(bullet, bullet_location)
-        for enemy_bullet_location in enemy_bullet_locations:
-            screen.blit(enemy_bullet, enemy_bullet_location)
+        # --- OPTIONAL: Draw the hitbox for debugging. Comment this out for the final game. ---
+        pygame.draw.rect(screen, (255, 0, 0), player_hitbox_rect, 2)
 
-        # Draw health bars
+
         player_health_bar = pygame.Rect(10, SCREEN_HEIGHT - 30, (player_health / PLAYER_MAX_HEALTH) * (SCREEN_WIDTH - 20), 20)
         pygame.draw.rect(screen, (0, 255, 0), player_health_bar)
-
+        
         enemy_health_bar = pygame.Rect(10, 10, (enemy_health / ENEMY_MAX_HEALTH) * (SCREEN_WIDTH - 20), 20)
         pygame.draw.rect(screen, (255, 0, 0), enemy_health_bar)
 
     elif game_over:
         dead_label = mono_font.render("YOU HAVE DIED", 1, (255, 255, 255))
-        dead_label_x = (SCREEN_WIDTH / 2) - (dead_label.get_width() / 2)
-        dead_label_y = (SCREEN_HEIGHT / 2) - (dead_label.get_height())
-        screen.blit(dead_label, (dead_label_x, dead_label_y))
-
         play_again_label = mono_font.render("CLICK ANYWHERE TO PLAY AGAIN", 1, (255, 255, 255))
-        play_again_label_x = (SCREEN_WIDTH / 2) - (play_again_label.get_width() / 2)
-        play_again_label_y = (SCREEN_HEIGHT / 2) + (play_again_label.get_height())
-        screen.blit(play_again_label, (play_again_label_x, play_again_label_y))
+        screen.blit(dead_label, dead_label.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 30)))
+        screen.blit(play_again_label, play_again_label.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 30)))
     
     elif victory:
         victory_label = mono_font.render("YOU ARE VICTORIOUS!", 1, (255, 255, 255))
-        victory_label_x = (SCREEN_WIDTH / 2) - (victory_label.get_width() / 2)
-        victory_label_y = (SCREEN_HEIGHT / 2) - (victory_label.get_height())
-        screen.blit(victory_label, (victory_label_x, victory_label_y))
-
         play_again_label = mono_font.render("CLICK ANYWHERE TO PLAY AGAIN", 1, (255, 255, 255))
-        play_again_label_x = (SCREEN_WIDTH / 2) - (play_again_label.get_width() / 2)
-        play_again_label_y = (SCREEN_HEIGHT / 2) + (play_again_label.get_height())
-        screen.blit(play_again_label, (play_again_label_x, play_again_label_y))
+        screen.blit(victory_label, victory_label.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 - 30)))
+        screen.blit(play_again_label, play_again_label.get_rect(center=(SCREEN_WIDTH/2, SCREEN_HEIGHT/2 + 30)))
 
     pygame.display.flip()
-    loop_counter += 1
-
+    clock.tick(60)
 
 pygame.quit()
