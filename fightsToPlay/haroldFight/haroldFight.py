@@ -22,7 +22,7 @@ player_health = PLAYER_MAX_HEALTH
 
 BULLET_WIDTH, BULLET_HEIGHT = 50, 100
 PLAYER_BULLET_SPEED = 10 
-ENEMY_BULLET_SPEED = 6 
+ENEMY_BULLET_SPEED = 9 
 BULLET_DAMAGE = 10
 PLAYER_FIRE_PAUSE = 30
 
@@ -30,7 +30,7 @@ PLAYER_FIRE_PAUSE = 30
 PLAYER_BEAM_COOLDOWN = 300  # 5 seconds (300 frames / 60fps)
 BEAM_DURATION = 30        # Beam stays active for 0.5 seconds
 BEAM_WIDTH = 20
-BEAM_DAMAGE_PER_FRAME = 1 # Deals damage every single frame it's active
+BEAM_DAMAGE_PER_FRAME = 1.5 # Deals damage every single frame it's active
 BEAM_COLOR = (0, 255, 255) # A bright cyan color
 
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
@@ -74,7 +74,7 @@ enemy_target_pos = None
 # Load the sound effects
 player_laser_sound_effect = pygame.mixer.Sound("player/player_laser.mp3")
 player_laser_sound_effect.set_volume(0.1)
-# player_beam_sound_effect = pygame.mixer.Sound("player/beam.mp3") # Add a beam sound file
+player_beam_sound_effect = pygame.mixer.Sound("player/beam.mp3")
 enemy_laser_sound_effect = pygame.mixer.Sound("enemies/enemy_laser.mp3")
 enemy_laser_sound_effect.set_volume(0.1)
 enemy_death_sound_effect = pygame.mixer.Sound("enemies/enemy_death.mp3")
@@ -134,12 +134,6 @@ while running:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             # --- NEW: R to fire beam ---
-            if keys[pygame.K_r] and not game_over and not victory and player_beam_timer >= PLAYER_BEAM_COOLDOWN:
-                beam_active = True
-                player_beam_timer = 0       # Start the cooldown timer
-                beam_duration_timer = 0     # Start the active duration timer
-                # player_beam_sound_effect.play() # Uncomment when you have a sound
-                
             # Left-click to restart game on game over/victory screen
             if (game_over or victory) and event.button == 1:
                  reset_game()
@@ -147,6 +141,20 @@ while running:
     if not game_over and not victory:
         keys = pygame.key.get_pressed()
         
+    if not game_over and not victory:
+        keys = pygame.key.get_pressed()
+# Left-click to restart game on game over/victory screen
+        if (game_over or victory) and keys[pygame.K_0]:
+                 reset_game()
+
+        if keys[pygame.K_r]:
+            # --- R to fire beam ---
+            if keys[pygame.K_r] and not game_over and not victory and player_beam_timer >= PLAYER_BEAM_COOLDOWN:
+                beam_active = True
+                player_beam_timer = 0       # Start the cooldown timer
+                beam_duration_timer = 0     # Start the active duration timer
+                player_beam_sound_effect.play()
+                
         if keys[pygame.K_a] or keys[pygame.K_LEFT]: player_rect.x -= PLAYER_SPEED
         if keys[pygame.K_d] or keys[pygame.K_RIGHT]: player_rect.x += PLAYER_SPEED
         if keys[pygame.K_w] or keys[pygame.K_UP]: player_rect.y -= PLAYER_SPEED
@@ -189,7 +197,7 @@ while running:
         # --- NEW: Beam Attack Logic ---
         if beam_active:
             beam_duration_timer += 1
-            beam_rect.midtop = player_rect.midtop
+            beam_rect.midbottom = player_rect.midtop
             
             # Check for collision and apply continuous damage
             if beam_rect.colliderect(enemy_ship_rect):
@@ -244,7 +252,7 @@ while running:
         for b_rect in player_bullets: screen.blit(player_bullet_image, b_rect)
         for b in enemy_bullets: screen.blit(enemy_bullet_image, b['rect'])
         
-        # --- NEW: Draw the beam if it's active ---
+        # --- Draw the beam if it's active ---
         if beam_active:
             pygame.draw.rect(screen, BEAM_COLOR, beam_rect)
             
