@@ -36,13 +36,13 @@ BEAM_COLOR = (0, 255, 255)
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
 ENEMY_SPEED = 5  
 ENEMY_FIRE_PAUSE = 70  
-ENEMY_SPECIAL_ATTACK_COOLDOWN = 300 # Shared cooldown for all special attacks
+ENEMY_SPECIAL_ATTACK_COOLDOWN = 200 # Shared cooldown for all special attacks
 ENEMY_MAX_HEALTH = 200
 enemy_health = ENEMY_MAX_HEALTH
 
 # --- Sequential Spiral Attack Attributes ---
-SPIRAL_BULLET_DELAY = 100       # Time in ms between each bullet
-TOTAL_SPIRAL_BULLETS = 30       # Number of bullets in one full attack
+SPIRAL_BULLET_DELAY = 50       # Time in ms between each bullet
+TOTAL_SPIRAL_BULLETS = 50       # Number of bullets in one full attack
 
 SCORE_FONT_SIZE = 30
 
