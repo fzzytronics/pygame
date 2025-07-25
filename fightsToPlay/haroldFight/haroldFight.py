@@ -34,7 +34,7 @@ BEAM_DAMAGE_PER_FRAME = 1.5 # Deals damage every single frame it's active
 BEAM_COLOR = (0, 255, 255) # A bright cyan color
 
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
-ENEMY_SPEED = 5  
+ENEMY_SPEED = 5 
 ENEMY_FIRE_PAUSE = 70  
 ENEMY_SPECIAL_ATTACK_COOLDOWN = 180 
 ENEMY_MAX_HEALTH = 200
@@ -194,7 +194,7 @@ while running:
             b['rect'].y += b['vy']
             if not screen.get_rect().colliderect(b['rect']): enemy_bullets.remove(b)
 
-        # --- NEW: Beam Attack Logic ---
+        # --- Beam Attack Logic ---
         if beam_active:
             beam_duration_timer += 1
             beam_rect.midbottom = player_rect.midtop

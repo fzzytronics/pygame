@@ -26,19 +26,23 @@ ENEMY_BULLET_SPEED = 9
 BULLET_DAMAGE = 10
 PLAYER_FIRE_PAUSE = 30
 
-# --- NEW: Beam Attack Attributes ---
-PLAYER_BEAM_COOLDOWN = 300  # 5 seconds (300 frames / 60fps)
-BEAM_DURATION = 30        # Beam stays active for 0.5 seconds
+# --- Beam Attack Attributes ---
+PLAYER_BEAM_COOLDOWN = 300
+BEAM_DURATION = 30
 BEAM_WIDTH = 20
-BEAM_DAMAGE_PER_FRAME = 1.5 # Deals damage every single frame it's active
-BEAM_COLOR = (0, 255, 255) # A bright cyan color
+BEAM_DAMAGE_PER_FRAME = 1.5
+BEAM_COLOR = (0, 255, 255)
 
 ENEMY_SHIP_WIDTH, ENEMY_SHIP_HEIGHT = 110, 110
 ENEMY_SPEED = 5  
 ENEMY_FIRE_PAUSE = 70  
-ENEMY_SPECIAL_ATTACK_COOLDOWN = 180 
+ENEMY_SPECIAL_ATTACK_COOLDOWN = 300 # Shared cooldown for all special attacks
 ENEMY_MAX_HEALTH = 200
 enemy_health = ENEMY_MAX_HEALTH
+
+# --- Sequential Spiral Attack Attributes ---
+SPIRAL_BULLET_DELAY = 100       # Time in ms between each bullet
+TOTAL_SPIRAL_BULLETS = 30       # Number of bullets in one full attack
 
 SCORE_FONT_SIZE = 30
 
@@ -93,6 +97,12 @@ beam_active = False
 beam_duration_timer = 0
 beam_rect = pygame.Rect(0, 0, BEAM_WIDTH, SCREEN_HEIGHT)
 
+# --- Spiral Attack State ---
+is_in_special_attack = False
+spiral_bullet_index = 0
+last_bullet_time = 0
+spiral_angle = 0
+
 
 def get_new_enemy_target():
     """Generates a new random target for the enemy in the top half of the screen."""
@@ -105,6 +115,7 @@ def reset_game() -> None:
     global player_bullets, enemy_bullets, player_health, enemy_health, game_over, victory
     global player_ship_fire_timer, enemy_ship_fire_timer, enemy_special_attack_timer, enemy_target_pos
     global player_beam_timer, beam_active, beam_duration_timer
+    global is_in_special_attack, spiral_bullet_index, last_bullet_time, spiral_angle
 
     player_bullets = []
     enemy_bullets = []
@@ -117,6 +128,12 @@ def reset_game() -> None:
     player_ship_fire_timer = 0
     enemy_ship_fire_timer = 0
     enemy_special_attack_timer = 0
+    
+    is_in_special_attack = False
+    spiral_bullet_index = 0
+    last_bullet_time = 0
+    spiral_angle = 0
+
     player_beam_timer = 0
     beam_active = False
     beam_duration_timer = 0
@@ -133,26 +150,20 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # --- NEW: R to fire beam ---
-            # Left-click to restart game on game over/victory screen
             if (game_over or victory) and event.button == 1:
                  reset_game()
 
     if not game_over and not victory:
         keys = pygame.key.get_pressed()
         
-    if not game_over and not victory:
-        keys = pygame.key.get_pressed()
-# Left-click to restart game on game over/victory screen
         if (game_over or victory) and keys[pygame.K_0]:
                  reset_game()
 
         if keys[pygame.K_r]:
-            # --- R to fire beam ---
-            if keys[pygame.K_r] and not game_over and not victory and player_beam_timer >= PLAYER_BEAM_COOLDOWN:
+            if not game_over and not victory and player_beam_timer >= PLAYER_BEAM_COOLDOWN:
                 beam_active = True
-                player_beam_timer = 0       # Start the cooldown timer
-                beam_duration_timer = 0     # Start the active duration timer
+                player_beam_timer = 0
+                beam_duration_timer = 0
                 player_beam_sound_effect.play()
                 
         if keys[pygame.K_a] or keys[pygame.K_LEFT]: player_rect.x -= PLAYER_SPEED
@@ -194,20 +205,17 @@ while running:
             b['rect'].y += b['vy']
             if not screen.get_rect().colliderect(b['rect']): enemy_bullets.remove(b)
 
-        # --- NEW: Beam Attack Logic ---
+        # --- Beam Attack Logic ---
         if beam_active:
             beam_duration_timer += 1
             beam_rect.midbottom = player_rect.midtop
             
-            # Check for collision and apply continuous damage
             if beam_rect.colliderect(enemy_ship_rect):
                 enemy_health -= BEAM_DAMAGE_PER_FRAME
-                enemy_death_sound_effect.play() # Play hit sound effect
+                enemy_death_sound_effect.play()
             
-            # Deactivate beam after its duration is over
             if beam_duration_timer >= BEAM_DURATION:
                 beam_active = False
-
 
         # --- Enemy Firing Logic ---
         if enemy_ship_fire_timer >= ENEMY_FIRE_PAUSE:
@@ -215,16 +223,48 @@ while running:
             bullet_rect = enemy_bullet_image.get_rect(midtop=enemy_ship_rect.midbottom)
             enemy_bullets.append({'rect': bullet_rect, 'vx': 0, 'vy': ENEMY_BULLET_SPEED})
             enemy_laser_sound_effect.play()
-            
-        if enemy_special_attack_timer >= ENEMY_SPECIAL_ATTACK_COOLDOWN:
+        
+        # 1. Trigger a random special attack when the cooldown is ready
+        if not is_in_special_attack and enemy_special_attack_timer >= ENEMY_SPECIAL_ATTACK_COOLDOWN:
             enemy_special_attack_timer = 0
+            chosen_attack = random.choice(['burst', 'spiral'])
+            
             enemy_laser_sound_effect.play()
-            for i in range(8):
-                angle = i * (math.pi / 4)
+
+            if chosen_attack == 'burst':
+                # The 8-shot burst attack happens all at once
+                for i in range(8):
+                    angle = i * (math.pi / 4)
+                    vx = math.cos(angle) * ENEMY_BULLET_SPEED
+                    vy = math.sin(angle) * ENEMY_BULLET_SPEED
+                    bullet_rect = enemy_bullet_image.get_rect(center=enemy_ship_rect.center)
+                    enemy_bullets.append({'rect': bullet_rect, 'vx': vx, 'vy': vy})
+
+            elif chosen_attack == 'spiral':
+                # This begins the sequential spiral attack
+                is_in_special_attack = True
+                spiral_bullet_index = 0
+                
+        # 2. If the spiral attack is active, continue firing bullets sequentially
+        if is_in_special_attack:
+            current_time = pygame.time.get_ticks()
+            if current_time - last_bullet_time > SPIRAL_BULLET_DELAY:
+                last_bullet_time = current_time
+                angle_increment = math.pi / 8
+                angle = spiral_angle + spiral_bullet_index * angle_increment
+                
                 vx = math.cos(angle) * ENEMY_BULLET_SPEED
                 vy = math.sin(angle) * ENEMY_BULLET_SPEED
+                
                 bullet_rect = enemy_bullet_image.get_rect(center=enemy_ship_rect.center)
                 enemy_bullets.append({'rect': bullet_rect, 'vx': vx, 'vy': vy})
+                
+                spiral_bullet_index += 1
+
+                # End the spiral attack after all bullets are fired
+                if spiral_bullet_index >= TOTAL_SPIRAL_BULLETS:
+                    is_in_special_attack = False
+                    spiral_angle += angle_increment
 
         # --- Collision Detection ---
         if enemy_health <= 0: victory = True
@@ -252,7 +292,6 @@ while running:
         for b_rect in player_bullets: screen.blit(player_bullet_image, b_rect)
         for b in enemy_bullets: screen.blit(enemy_bullet_image, b['rect'])
         
-        # --- Draw the beam if it's active ---
         if beam_active:
             pygame.draw.rect(screen, BEAM_COLOR, beam_rect)
             
