@@ -41,10 +41,10 @@ def fernando():
             print('         ████                ████       ')
             print('           █████         █████          ')
             print('                ██████                  ') 
-            print("welcome to Dandelion stranger! My name's Fernando! From the looks of it, you must be another one of those warriors.")
+            print("Welcome to Dandelion stranger! My name's Fernando! From the looks of it, you must be another one of those warriors.")
             print("Lots of your type around here. Some knights came by earlier, looking for the same things as you I bet.")
             print("*He gives a warm smile.")
-        portNo = True
+        portNo = True #portrait toggle
         print("---------------------------------------------------------------------------------------------")
         print('(1) "What do you do?"')
         print('(2) "Where can I rest?"')
